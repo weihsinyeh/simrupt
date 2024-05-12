@@ -12,6 +12,5 @@ $(GIT_HOOKS):
 	@scripts/install-git-hooks
 	@echo
 
-
 clean:
 	$(MAKE) -C $(KDIR) M=$(PWD) clean

@@ -38,12 +38,15 @@ static int major;
 static struct class *simrupt_class;
 static struct cdev simrupt_cdev;
 
-/* Data are stored into a kfifo buffer before passing them to the userspace */
-static DECLARE_KFIFO_PTR(rx_fifo, unsigned char);
+/* Data are stored into a kfifo buffer before passing
+ * them to the userspace */
+static DECLARE_KFIFO_PTR(rx_fifo, unsigned char);  // pointer is char type
 
-/* NOTE: the usage of kfifo is safe (no need for extra locking), until there is
- * only one concurrent reader and one concurrent writer. Writes are serialized
- * from the interrupt context, readers are serialized using this mutex.
+/* NOTE: the usage of kfifo is safe (no need for extra
+ * locking), until there is only one concurrent reader
+ * and one concurrent writer. Writes are serialized
+ * from the interrupt context, readers are serialized
+ * using this mutex.
  */
 static DEFINE_MUTEX(read_lock);
 
@@ -87,10 +90,15 @@ static struct circ_buf fast_buf;
 static int fast_buf_get(void)
 {
     struct circ_buf *ring = &fast_buf;
-
-    /* prevent the compiler from merging or refetching accesses for tail */
-    unsigned long head = READ_ONCE(ring->head), tail = ring->tail;
     int ret;
+    unsigned long head, tail;
+loop:
+
+    /* prevent the compiler from merging or refetching
+     * accesses for tail.
+     */
+    head = ring->head;
+    tail = ring->tail;
 
     if (unlikely(!CIRC_CNT(head, tail, PAGE_SIZE)))
         return -ENOENT;
@@ -105,8 +113,12 @@ static int fast_buf_get(void)
     smp_mb();
 
     /* increment the tail pointer */
-    ring->tail = (tail + 1) & (PAGE_SIZE - 1);
+    if (!atomic_cmpxchg((atomic_t *) &ring->tail, tail,
+                        (tail + 1) & (PAGE_SIZE - 1)))
+        goto loop;
 
+    /* increment the tail pointer */
+    // ring->tail = (tail + 1) & (PAGE_SIZE - 1);
     return ret;
 }
 
@@ -159,9 +171,9 @@ static void simrupt_work_func(struct work_struct *w)
 
     while (1) {
         /* Consume data from the circular buffer */
-        mutex_lock(&consumer_lock);
+        // mutex_lock(&consumer_lock);
         val = fast_buf_get();
-        mutex_unlock(&consumer_lock);
+        // mutex_unlock(&consumer_lock);
 
         if (val < 0)
             break;
